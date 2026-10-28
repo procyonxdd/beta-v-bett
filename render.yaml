@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: beta-v-bet
+    runtime: node
+    plan: free
+    buildCommand: npm install && node fetch-games.mjs
+    startCommand: npm start
