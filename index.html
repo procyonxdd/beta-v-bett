@@ -6753,18 +6753,29 @@ async function brTransport() {
   await conn.setTransport(BR_BASE + t + '/index.mjs', [{ wisp: brWisp() }]);
 }
 
+async function brWipe() {
+  try { (await navigator.serviceWorker.getRegistrations()).forEach((r) => r.unregister()); } catch (e) {}
+  const dbs = indexedDB.databases ? await indexedDB.databases() : [{ name: '$scramjet' }];
+  await Promise.all(dbs.filter((d) => d.name && d.name.startsWith('$scramjet')).map((d) => new Promise((ok) => {
+    const r = indexedDB.deleteDatabase(d.name); r.onsuccess = r.onerror = r.onblocked = () => ok();
+  })));
+}
+
 async function brStart() {
   if (window.__br) return window.__br;
   if (!/^https?:$/.test(location.protocol) || !navigator.serviceWorker) throw new Error('HOST');
   if (!window.$scramjetLoadController) await brLoad(BR_BASE + 'scram/scramjet.all.js');
   const { ScramjetController } = $scramjetLoadController();
-  const sj = new ScramjetController({
+  const mk = () => new ScramjetController({
     prefix: new URL('scramjet/', BR_BASE).pathname,
     files: { wasm: BR_BASE + 'scram/scramjet.wasm.wasm', all: BR_BASE + 'scram/scramjet.all.js', sync: BR_BASE + 'scram/scramjet.sync.js' },
   });
+  let sj = mk();
+  /* init() builds Scramjet's settings database; do it before the worker touches it,
+     and if an old half-built copy is in the way, clear it and try once more. */
+  try { await sj.init(); } catch (e) { await brWipe(); sj = mk(); await sj.init(); }
   await navigator.serviceWorker.register(BR_BASE + 'sw.js', { scope: new URL('./', BR_BASE).pathname });
   await navigator.serviceWorker.ready;
-  await sj.init();
   await brTransport();
   return (window.__br = sj);
 }
