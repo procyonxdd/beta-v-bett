@@ -3123,8 +3123,54 @@ body{background:linear-gradient(180deg,var(--bg) 0,var(--bg) 55%,color-mix(in sr
 .br-set input{flex:1;min-width:220px}
 </style>
 <script src="config.js"></script>
+<style id="decoy-css">
+#decoy{position:fixed;inset:0;z-index:2147483647;overflow:auto;background:#fff;color:#1d2733;font-family:Georgia,'Times New Roman',serif;transition:opacity .4s}
+#decoy.out{opacity:0}
+#decoy *{box-sizing:border-box}
+#decoy .top{background:#12263f;color:#c9d6e6;font:12px/1 Arial,sans-serif;padding:9px 6%;display:flex;gap:22px;justify-content:flex-end}
+#decoy .head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 6%;border-bottom:3px solid #8a1c2b}
+#decoy .brand{font-size:26px;letter-spacing:.14em;color:#12263f;font-weight:700}
+#decoy .brand small{display:block;font:11px Arial,sans-serif;letter-spacing:.3em;color:#8a1c2b;margin-top:4px}
+#decoy nav{display:flex;gap:24px;flex-wrap:wrap;font:14px Arial,sans-serif;color:#12263f}
+#decoy .hero{padding:72px 6%;background:linear-gradient(120deg,#12263f,#1f4268);color:#fff}
+#decoy .hero h1{margin:0 0 12px;font-size:clamp(30px,5vw,48px);font-weight:400}
+#decoy .hero p{margin:0;max-width:560px;font:17px/1.5 Arial,sans-serif;color:#d6e2f0}
+#decoy .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;padding:44px 6%}
+#decoy .card{border:1px solid #d9dee5;padding:22px;border-top:4px solid #8a1c2b}
+#decoy .card h2{margin:0 0 8px;font-size:20px;color:#12263f}
+#decoy .card p{margin:0;font:14px/1.55 Arial,sans-serif;color:#46536a}
+#decoy .foot{padding:26px 6%;background:#f3f5f8;font:12px Arial,sans-serif;color:#5a667a;border-top:1px solid #d9dee5}
+</style>
 </head>
 <body>
+<div id="decoy" aria-hidden="true">
+<div class="top"><span>Parents</span><span>Students</span><span>Faculty &amp; Staff</span><span>Calendar</span></div>
+<div class="head"><div class="brand">CRANBROOK<small>SCHOOLS · MICHIGAN</small></div>
+<nav><span>About</span><span>Academics</span><span>Admissions</span><span>Student Life</span><span>Athletics</span><span>Contact</span></nav></div>
+<div class="hero"><h1>Welcome to Cranbrook Schools</h1><p>A community committed to learning, curiosity and character, where every student is known and challenged to grow.</p></div>
+<div class="cards">
+<div class="card"><h2>Academics</h2><p>Explore our curriculum, course offerings and the teachers who bring them to life.</p></div>
+<div class="card"><h2>Admissions</h2><p>Learn how to become part of our school community and what to expect along the way.</p></div>
+<div class="card"><h2>Student Life</h2><p>Clubs, arts, service and the traditions that make our campus feel like home.</p></div>
+<div class="card"><h2>Athletics</h2><p>Teams, schedules and news from our players and coaches throughout the season.</p></div>
+</div>
+<div class="foot">© Cranbrook Schools · Michigan · Privacy · Accessibility · Non-Discrimination Notice</div>
+</div>
+<script>
+(function () {
+  var d = document.getElementById('decoy'); if (!d) return;
+  var t = document.querySelector('title'), mine = 'Cranbrook Schools', real = document.title;
+  function set() { document.title = mine; }
+  set();
+  var mo = new MutationObserver(function () { if (document.title === mine) return; real = document.title; set(); });
+  if (t) mo.observe(t, { childList: true, characterData: true, subtree: true });
+  setTimeout(function () {
+    d.classList.add('out'); mo.disconnect(); document.title = real;
+    setTimeout(function () { d.remove(); }, 450);
+  }, 3000);
+})();
+</script>
+
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header" id="site-header">
