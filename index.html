@@ -6746,38 +6746,29 @@ const BR_QUICK = [['DuckDuckGo','https://duckduckgo.com/'],['Wikipedia','https:/
 const brLoad = (src) => new Promise((ok, no) => { const t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = () => no(new Error('Could not load ' + src)); document.head.appendChild(t); });
 const brWisp = () => brGet('wisp', window.BETA_WISP || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/wisp/'));
 
-async function brTransport() {
-  const { BareMuxConnection } = await import(BR_BASE + 'baremux/index.mjs');
-  const conn = new BareMuxConnection(BR_BASE + 'baremux/worker.js');
+async function brMakeTransport() {
   const t = brGet('transport', 'libcurl') === 'epoxy' ? 'epoxy' : 'libcurl';
-  await conn.setTransport(BR_BASE + t + '/index.mjs', [{ wisp: brWisp() }]);
-}
-
-async function brWipe() {
-  try { (await navigator.serviceWorker.getRegistrations()).forEach((r) => r.unregister()); } catch (e) {}
-  const dbs = indexedDB.databases ? await indexedDB.databases() : [{ name: '$scramjet' }];
-  await Promise.all(dbs.filter((d) => d.name && d.name.startsWith('$scramjet')).map((d) => new Promise((ok) => {
-    const r = indexedDB.deleteDatabase(d.name); r.onsuccess = r.onerror = r.onblocked = () => ok();
-  })));
+  const g = t === 'epoxy' ? 'EpoxyTransport' : 'LibcurlTransport';
+  if (!window[g]) await brLoad(BR_BASE + t + '/index.js');
+  const C = t === 'epoxy' ? window.EpoxyTransport.EpoxyClient : window.LibcurlTransport.LibcurlClient;
+  return new C({ wisp: brWisp() });
 }
 
 async function brStart() {
   if (window.__br) return window.__br;
   if (!/^https?:$/.test(location.protocol) || !navigator.serviceWorker) throw new Error('HOST');
-  if (!window.$scramjetLoadController) await brLoad(BR_BASE + 'scram/scramjet.all.js');
-  const { ScramjetController } = $scramjetLoadController();
-  const mk = () => new ScramjetController({
-    prefix: new URL('scramjet/', BR_BASE).pathname,
-    files: { wasm: BR_BASE + 'scram/scramjet.wasm.wasm', all: BR_BASE + 'scram/scramjet.all.js', sync: BR_BASE + 'scram/scramjet.sync.js' },
-  });
-  let sj = mk();
-  /* init() builds Scramjet's settings database; do it before the worker touches it,
-     and if an old half-built copy is in the way, clear it and try once more. */
-  try { await sj.init(); } catch (e) { await brWipe(); sj = mk(); await sj.init(); }
-  await navigator.serviceWorker.register(BR_BASE + 'sw.js', { scope: new URL('./', BR_BASE).pathname });
+  const reg = await navigator.serviceWorker.register(BR_BASE + 'sw.js', { type: 'classic', updateViaCache: 'none' });
   await navigator.serviceWorker.ready;
-  await brTransport();
-  return (window.__br = sj);
+  const sw = reg.active || navigator.serviceWorker.controller;
+  if (!sw) throw new Error('The service worker did not start. Reload the page and try again.');
+  await brLoad(BR_BASE + 'scram/scramjet.js');
+  await brLoad(BR_BASE + 'controller/controller.api.js');
+  const { Controller, config } = window.$scramjetController;
+  const P = (p) => new URL(p, BR_BASE).pathname;
+  config.injectPath = P('controller/controller.inject.js');
+  config.wasmPath = P('scram/scramjet.wasm');
+  config.scramjetPath = P('scram/scramjet.js');
+  return (window.__br = new Controller({ serviceworker: sw, transport: await brMakeTransport() }));
 }
 
 function browseView(main) {
@@ -6819,13 +6810,12 @@ function browseView(main) {
     return 'https://duckduckgo.com/?q=' + encodeURIComponent(v);
   };
   let frame = null;
-  const sync = () => { try { input.value = frame.url.href; say(''); } catch (e) {} };
   async function go(v) {
     const url = toUrl(v);
     if (!url) return;
     try {
       say('Connecting…');
-      if (!frame) { frame = (await brStart()).createFrame(q('#br-frame')); frame.frame.addEventListener('load', sync); }
+      if (!frame) { frame = (await brStart()).createFrame(q('#br-frame')); frame.element.addEventListener('load', () => say('')); }
       stage.classList.add('live');
       input.value = url;
       say('Loading ' + url + '…');
@@ -6836,15 +6826,14 @@ function browseView(main) {
         : 'Could not start the browser: ' + e.message, true);
     }
   }
-  const hist = (d) => { try { frame.frame.contentWindow.history.go(d); } catch (e) {} };
   q('#br-form').addEventListener('submit', (e) => { e.preventDefault(); go(input.value); });
-  q('#br-back').addEventListener('click', () => hist(-1));
-  q('#br-fwd').addEventListener('click', () => hist(1));
-  q('#br-reload').addEventListener('click', () => { try { frame.frame.contentWindow.location.reload(); } catch (e) {} });
+  q('#br-back').addEventListener('click', () => { try { frame.back(); } catch (e) {} });
+  q('#br-fwd').addEventListener('click', () => { try { frame.forward(); } catch (e) {} });
+  q('#br-reload').addEventListener('click', () => { try { frame.reload(); } catch (e) {} });
   main.querySelectorAll('.br-tiles [data-u]').forEach((b) => b.addEventListener('click', () => go(b.dataset.u)));
   q('#br-save').addEventListener('click', async () => {
     brSet('wisp', q('#br-wisp').value.trim()); brSet('transport', q('#br-tr').value);
-    try { if (window.__br) await brTransport(); toast('Connection saved', 'check'); } catch (e) { say(e.message, true); }
+    try { if (window.__br) window.__br.setTransport(await brMakeTransport()); toast('Connection saved', 'check'); } catch (e) { say(e.message, true); }
   });
   input.focus();
 }
